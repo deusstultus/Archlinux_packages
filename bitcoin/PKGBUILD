@@ -1,59 +1,66 @@
 # $Id$
 # Maintainer: Timothy Redaelli <timothy.redaelli@gmail.com>
 # Contributor: shahid <helllamer@gmail.com>
+# Contributor: deusstultus <deusstultus@gmail.com>
 
-#_dbver=4.8.30
+_dbver=4.8.30
 pkgbase=bitcoin
 pkgname=('bitcoin-daemon' 'bitcoin-cli' 'bitcoin-qt' 'bitcoin-tx')
 pkgver=0.12.0
 pkgrel=2
 arch=('i686' 'x86_64')
-url="http://www.bitcoin.org/"
+url="https://www.bitcoin.org/"
 makedepends=('boost' 'libevent' 'qt5-base' 'qt5-tools' 'qrencode' 'miniupnpc' 'protobuf')
-license=('MIT')
-source=(http://bitcoin.org/bin/bitcoin-core-$pkgver/bitcoin-$pkgver.tar.gz
+#See license details at https://github.com/bitcoin/bitcoin/blob/master/contrib/debian/copyright
+license=(
+  'MIT' #Main bitcoin-core distribution license
+  'GPL' #Manpages
+)
+[[ -n $_dbver ]] && license+=('Custom') #Static link requires acknowledgement in bitcoin{d,-qt}
+source=(https://bitcoin.org/bin/bitcoin-core-$pkgver/bitcoin-$pkgver.tar.gz
         https://raw.github.com/bitcoin/bitcoin/v$pkgver/contrib/debian/bitcoin-qt.desktop
         https://raw.github.com/bitcoin/bitcoin/v$pkgver/share/pixmaps/bitcoin128.png
         https://raw.github.com/bitcoin/bitcoin/v$pkgver/contrib/debian/examples/bitcoin.conf
         https://raw.github.com/bitcoin/bitcoin/v$pkgver/contrib/debian/manpages/bitcoind.1
-        https://raw.github.com/bitcoin/bitcoin/v$pkgver/contrib/debian/manpages/bitcoin.conf.5)
-#        http://download.oracle.com/berkeley-db/db-${_dbver}.NC.tar.gz
+        https://raw.github.com/bitcoin/bitcoin/v$pkgver/contrib/debian/manpages/bitcoin.conf.5
+        https://raw.github.com/bitcoin/bitcoin/v$pkgver/contrib/debian/copyright
+        #http://download.oracle.com/berkeley-db/db-${_dbver}.NC.tar.gz
+        )
 sha256sums=('0f1cda66c841a548a07cc37e80b0727354b1236d9f374c7d44362acdb85eb3e1'
             'b65b377c0d9ecae9eea722843bca0add6bdb7e50929a7e1f751b79b6621c6073'
             'ad880c8459ecfdb96abe6a4689af06bdd27906e0edcd39d0915482f2da91e722'
             'efe06ab377706338bc75fa1e24de9785950029f3350a17a4b8ce563b760f3c0c'
             '7d090ddd485c36d4fae5e6627388c5550f824fd498d5fd958ec999857fff7b28'
-            '7f4021e34d52c321f679b548fcf6d55b4da30077b7aed392976f048ab88dcdd1')
-
-# Upstream should be more coherent!
-case "$pkgver" in
-*.*.*.*)
-  _pkgver=${pkgver%.*}
-  ;;
-*)
-  _pkgver=$pkgver
-  ;;
-esac
-
+            '7f4021e34d52c321f679b548fcf6d55b4da30077b7aed392976f048ab88dcdd1'
+            '718d300f09cd574eb5fad0bb5447632253bcee3371f89cb107f59990ea809515'
+            #'12edc0df75bf9abd7f82f821795bcee50f42cb2e5f76a6a281b85732798364ef'
+            )
+[[ -n $_dbver ]] && \
+  source+=(http://download.oracle.com/berkeley-db/db-${_dbver}.NC.tar.gz) && \
+  sha256sums+=('12edc0df75bf9abd7f82f821795bcee50f42cb2e5f76a6a281b85732798364ef')
 # TODO: Build using db 4.8.30
-#prepare() {
-#  mkdir -p db4
-#}
+prepare() {
+  [[ -n $dbver ]] && mkdir -p db4 || :
+}
 
 build() {
-#  cd "db-$_dbver.NC/build_unix"
-#  ../dist/configure --enable-cxx --disable-shared --with-pic --prefix="$srcdir/db4"
-#  make
-#  make install
-
+  [[ -n $_dbver ]] && (cd "db-$_dbver.NC/build_unix"
+  ../dist/configure --enable-cxx --disable-shared --with-pic --prefix="$srcdir/db4"
+  make
+  make install
+  ) 
   cd "$srcdir/$pkgbase-$pkgver"
-  ./configure --prefix=/usr --with-gui=qt5 --with-incompatible-bdb #LDFLAGS="-L$srcdir/db4/lib/ $LDFLAGS" CPPFLAGS="-I$srcdir/db4/include/ $CPPFLAGS"
+  [[ -n $_dbver ]] &&
+  ./configure --prefix=/usr --with-gui=qt5 LDFLAGS="-L$srcdir/db4/lib/ $LDFLAGS" CPPFLAGS="-I$srcdir/db4/include/ $CPPFLAGS" \
+  || ./configure --prefix=/usr --with-gui=qt5 --with-incompatible-bdb #LDFLAGS="-L$srcdir/db4/lib/ $LDFLAGS" CPPFLAGS="-I$srcdir/db4/include/ $CPPFLAGS"
   make
 }
 
 package_bitcoin-qt() {
   pkgdesc="Bitcoin is a peer-to-peer network based digital currency - Qt"
   depends=(boost-libs desktop-file-utils libevent qt5-base miniupnpc qrencode protobuf)
+  optdepends=(zeromq)
+  license+=('Custom') #Iconsets under Expat from various authors
   install=bitcoin-qt.install
 
   cd "$pkgbase-$pkgver"
@@ -64,12 +71,15 @@ package_bitcoin-qt() {
     "$pkgdir"/usr/share/pixmaps/bitcoin128.png
 
   install -Dm644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING"
+  install -Dm644 $srcdir/copyright "$pkgdir/usr/share/licenses/$pkgname/ATTRIBUTION"
+  [[ -n $_dbver ]] && install -Dm644 $srcdir/db-${_dbver}.NC/LICENSE \
+    "$pkgdir/usr/share/licenses/$pkgname/libdb_LICENSE"
 }
 
 package_bitcoin-daemon() {
   pkgdesc="Bitcoin is a peer-to-peer network based digital currency - daemon"
   depends=(boost-libs libevent miniupnpc)
-
+  optdepends=(zeromq)
   cd "$pkgbase-$pkgver"
   install -Dm755 src/bitcoind "$pkgdir"/usr/bin/bitcoind
   install -Dm644 "$srcdir"/bitcoin.conf \
@@ -79,6 +89,8 @@ package_bitcoin-daemon() {
   install -Dm644 "$srcdir"/bitcoin.conf.5 \
     "$pkgdir"/usr/share/man/man5/bitcoin.conf.5
   install -Dm644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING"
+  [[ -n $_dbver ]] && install -Dm644 $srcdir/db-${_dbver}.NC/LICENSE \
+    "$pkgdir/usr/share/licenses/$pkgname/libdb_LICENSE"
 }
 
 package_bitcoin-cli() {
