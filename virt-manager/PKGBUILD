@@ -1,45 +1,63 @@
-# $Id$
 # Maintainer: Sergej Pupykin <pupykin.s+arch@gmail.com>
 # Contributor: Daniel Micay <danielmicay@gmail.com>
 # Contributor: Jonathan Wiersma <archaur at jonw dot org>
+# Contributor: deusstultus <deusstultus@gmail.com>
 
 pkgbase=virt-manager
 pkgname=(virt-install virt-manager)
 pkgver=1.3.2
-pkgrel=2
+pkgrel=3
 pkgdesc="Console user interface for managing virtual machines"
 arch=('any')
-url="http://virt-manager.org/"
+url="https://virt-manager.org/"
 license=('GPL')
-depends=('python2' 'libvirt-python' 'libxml2' 'libvirt'
-	 'libosinfo' 'python2-ipaddr' 'python2-gobject' 'python2-requests')
-makedepends=('intltool>=0.35.0'
-	     'dbus-python' 'gtk-vnc' 'rarian'
-	     'gconf' 'yajl' 'librsvg' 'python2-gconf' 'libuser' 'python2-cairo'
-	     'python2-ipy' 'newt-syrup' 'openbsd-netcat' 'x11-ssh-askpass'
-	     'graphite' 'spice-gtk3'
-	     'libvirt-glib' 'vte3')
-source=("http://virt-manager.org/download/sources/virt-manager/virt-manager-$pkgver.tar.gz")
+depends=('libvirt-python' 'libxml2' 'libvirt'
+         'libosinfo' 'python2-ipaddr' 'python2-gobject' 'python2-requests')
+makedepends=('intltool>=0.35.0' 'urlgrabber'
+             'dbus-python' 'gtk-vnc' 'rarian'
+             'gconf' 'yajl' 'librsvg' 'python2-gconf' 'libuser' 'python2-cairo'
+             'python2-ipy' 'newt-syrup' 'openbsd-netcat' 'x11-ssh-askpass'
+             'graphite' 'spice-gtk3'
+             'libvirt-glib' 'vte3')
+source=("https://virt-manager.org/download/sources/virt-manager/virt-manager-$pkgver.tar.gz")
 md5sums=('6d0436939769b66457034b1ae7040b85')
 
 build() {
   cd "$srcdir/$pkgbase-$pkgver"
+  python2 setup.py configure --prefix=/usr
   python2 setup.py build
+  mkdir temp_pkgdir
+  python2 setup.py --no-update-icon-cache --no-compile-schemas install --root "temp_pkgdir"
 }
 
 package_virt-install() {
-  cd "$srcdir/$pkgbase-$pkgver"
-  python2 setup.py --no-update-icon-cache --no-compile-schemas install --root "$pkgdir"
+  cd "$srcdir/$pkgbase-$pkgver/temp_pkgdir"
+  install -D usr/bin/virt-{install,clone,convert,xml} \
+     --target-directory="$pkgdir/usr/bin"
+  install -D usr/share/man/man1/virt-{install,clone,convert,xml}.1 \
+     --target-directory="$pkgdir/usr/share/man/man1"
+  install -D usr/share/virt-manager/virt-{install,clone,convert,xml} \
+     --target-directory="$pkgdir/usr/share/virt-manager"
+  cp -r usr/share/virt-manager/virt{inst,cli,conv} "$pkgdir/usr/share/virt-manager"
 }
 
 package_virt-manager() {
   pkgdesc="Desktop user interface for managing virtual machines"
   install=virt-manager.install
+  install=virt-manager.install
   depends=('virt-install'
-	    'python2' 'libvirt-python' 'libxml2' 'libvirt' 'urlgrabber'
-	    'dbus-python' 'gtk-vnc' 'rarian'
-	    'yajl' 'librsvg' 'libuser' 'python2-cairo'
-	    'python2-ipy' 'newt-syrup' 'openbsd-netcat' 'x11-ssh-askpass'
-	    'graphite' 'spice-gtk3'
-	    'libvirt-glib' 'vte3')
+           'libvirt-python' 'libxml2' 'libvirt'
+           'dbus-python' 'gtk-vnc' 'rarian'
+           'yajl' 'librsvg' 'libuser' 'python2-cairo'
+           'python2-ipy' 'newt-syrup' 'openbsd-netcat' 'x11-ssh-askpass'
+           'graphite' 'spice-gtk3'
+           'libvirt-glib' 'vte3')
+
+  cd "$srcdir/$pkgbase-$pkgver"
+  cp -r temp_pkgdir/usr "$pkgdir"
+  #Remove same targets as were installed in virt-install
+  cd "$pkgdir"
+  rm -r usr/bin/virt-{install,clone,convert,xml}
+  rm -r usr/share/man/man1/virt-{install,clone,convert,xml}.1
+  rm -r usr/share/virt-manager/virt{inst,cli,conv,-{install,clone,convert,xml}}
 }
